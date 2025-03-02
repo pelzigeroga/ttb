@@ -1,7 +1,7 @@
 const express = require("express");
 const sqlite3 = require("sqlite3").verbose();
 const cors = require("cors");
-const difflib = require("difflib");
+const stringSimilarity = require("string-similarity");
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -36,8 +36,8 @@ app.post("/api/training", (req, res) => {
     db.all("SELECT DISTINCT uebung FROM training WHERE benutzer = ?", [benutzer], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         const bekannteUebungen = rows.map(row => row.uebung);
-        const aehnliche = difflib.getCloseMatches(uebung, bekannteUebungen, 1, 0.8);
-        const korrigierteUebung = aehnliche.length ? aehnliche[0] : uebung;
+        const matches = stringSimilarity.findBestMatch(uebung, bekannteUebungen);
+        const korrigierteUebung = matches.bestMatch.rating > 0.8 ? matches.bestMatch.target : uebung;
         const sql = "INSERT INTO training (datum, uebung, gewicht, wiederholungen, benutzer) VALUES (?, ?, ?, ?, ?)";
         db.run(sql, [datum, korrigierteUebung, gewicht, wiederholungen, benutzer], function (err) {
             if (err) return res.status(500).json({ error: err.message });
