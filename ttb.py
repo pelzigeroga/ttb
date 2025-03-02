@@ -1,6 +1,7 @@
 const express = require("express");
 const sqlite3 = require("sqlite3").verbose();
 const cors = require("cors");
+const difflib = require("difflib");
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -20,24 +21,43 @@ const db = new sqlite3.Database("trainingstagebuch.db", (err) => {
             datum TEXT,
             uebung TEXT,
             gewicht REAL,
-            wiederholungen INTEGER
+            wiederholungen INTEGER,
+            benutzer TEXT
         )`);
     }
 });
 
-// Eintrag hinzufügen
+// Eintrag hinzufügen (mit Fuzzy-Matching)
 app.post("/api/training", (req, res) => {
-    const { datum, uebung, gewicht, wiederholungen } = req.body;
-    const sql = "INSERT INTO training (datum, uebung, gewicht, wiederholungen) VALUES (?, ?, ?, ?)";
-    db.run(sql, [datum, uebung, gewicht, wiederholungen], function (err) {
+    const { datum, uebung, gewicht, wiederholungen, benutzer } = req.body;
+    if (!datum || !uebung || !gewicht || !wiederholungen || !benutzer) {
+        return res.status(400).json({ error: "Alle Felder sind erforderlich!" });
+    }
+    db.all("SELECT DISTINCT uebung FROM training WHERE benutzer = ?", [benutzer], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
-        res.json({ id: this.lastID, datum, uebung, gewicht, wiederholungen });
+        const bekannteUebungen = rows.map(row => row.uebung);
+        const aehnliche = difflib.getCloseMatches(uebung, bekannteUebungen, 1, 0.8);
+        const korrigierteUebung = aehnliche.length ? aehnliche[0] : uebung;
+        const sql = "INSERT INTO training (datum, uebung, gewicht, wiederholungen, benutzer) VALUES (?, ?, ?, ?, ?)";
+        db.run(sql, [datum, korrigierteUebung, gewicht, wiederholungen, benutzer], function (err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ id: this.lastID, datum, uebung: korrigierteUebung, gewicht, wiederholungen, benutzer });
+        });
     });
 });
 
-// Alle Einträge abrufen
+// Alle Einträge abrufen (mit Filterung)
 app.get("/api/training", (req, res) => {
-    db.all("SELECT * FROM training ORDER BY datum", [], (err, rows) => {
+    const { benutzer, filterFeld, filterWert } = req.query;
+    if (!benutzer) return res.status(400).json({ error: "Benutzer erforderlich!" });
+    let sql = "SELECT * FROM training WHERE benutzer = ?";
+    let params = [benutzer];
+    if (filterFeld && filterWert) {
+        sql += ` AND ${filterFeld} LIKE ?`;
+        params.push(`%${filterWert}%`);
+    }
+    sql += " ORDER BY datum";
+    db.all(sql, params, (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(rows);
     });
@@ -47,6 +67,9 @@ app.get("/api/training", (req, res) => {
 app.put("/api/training/:id", (req, res) => {
     const { id } = req.params;
     const { datum, uebung, gewicht, wiederholungen } = req.body;
+    if (!datum || !uebung || !gewicht || !wiederholungen) {
+        return res.status(400).json({ error: "Alle Felder sind erforderlich!" });
+    }
     const sql = "UPDATE training SET datum = ?, uebung = ?, gewicht = ?, wiederholungen = ? WHERE id = ?";
     db.run(sql, [datum, uebung, gewicht, wiederholungen, id], function (err) {
         if (err) return res.status(500).json({ error: err.message });
@@ -60,6 +83,22 @@ app.delete("/api/training/:id", (req, res) => {
     db.run("DELETE FROM training WHERE id = ?", id, function (err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ message: "Eintrag gelöscht", id });
+    });
+});
+
+// Statistiken abrufen
+app.get("/api/statistiken", (req, res) => {
+    const { benutzer } = req.query;
+    if (!benutzer) return res.status(400).json({ error: "Benutzer erforderlich!" });
+    const sql = `SELECT uebung, COUNT(*) AS anzahl, 
+                ROUND(AVG(gewicht), 2) AS avg_weight, 
+                ROUND(MAX(gewicht), 2) AS max_weight,
+                ROUND(AVG(wiederholungen), 2) AS avg_reps,
+                MAX(wiederholungen) AS max_reps
+                FROM training WHERE benutzer = ? GROUP BY uebung`;
+    db.all(sql, [benutzer], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
     });
 });
 
