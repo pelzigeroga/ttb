@@ -1,0 +1,14 @@
+{
+  "name": "trainingstagebuch-backend",
+  "version": "1.0.0",
+  "description": "Backend für das Trainingstagebuch",
+  "main": "main.js",
+  "scripts": {
+    "start": "node main.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "sqlite3": "^5.1.6",
+    "cors": "^2.8.5"
+  }
+}
