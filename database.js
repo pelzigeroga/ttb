@@ -1,10 +1,17 @@
 const sqlite3 = require("sqlite3").verbose();
+const fs = require("fs");
 const path = require("path");
 
-// Datenbank im "db"-Ordner speichern
-const dbPath = path.join(__dirname, "db", "trainingstagebuch.db");
+// Stelle sicher, dass der "db"-Ordner existiert
+const dbDir = path.join(__dirname, "db");
+if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+}
 
-// Verbindung zur SQLite-Datenbank
+// Datenbankpfad setzen
+const dbPath = path.join(dbDir, "trainingstagebuch.db");
+
+// Verbindung zur SQLite-Datenbank herstellen
 const db = new sqlite3.Database(dbPath, (err) => {
     if (err) {
         console.error("❌ Fehler beim Öffnen der Datenbank:", err.message);
