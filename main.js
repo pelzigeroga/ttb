@@ -47,8 +47,8 @@ app.post("/api/training", (req, res) => {
 });
 
 // Alle Einträge abrufen (mit Filterung)
-app.get("/api/training", (req, res) => {
-    db.all("SELECT * FROM training ORDER BY datum", [], (err, rows) => {
+app.get("/api/test-db", (req, res) => {
+    db.all("SELECT name FROM sqlite_master WHERE type='table'", [], (err, rows) => {
         if (err) {
             res.status(500).json({ error: err.message });
             return;
