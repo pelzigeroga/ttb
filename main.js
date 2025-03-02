@@ -48,20 +48,15 @@ app.post("/api/training", (req, res) => {
 
 // Alle Einträge abrufen (mit Filterung)
 app.get("/api/training", (req, res) => {
-    const { benutzer, filterFeld, filterWert } = req.query;
-    if (!benutzer) return res.status(400).json({ error: "Benutzer erforderlich!" });
-    let sql = "SELECT * FROM training WHERE benutzer = ?";
-    let params = [benutzer];
-    if (filterFeld && filterWert) {
-        sql += ` AND ${filterFeld} LIKE ?`;
-        params.push(`%${filterWert}%`);
-    }
-    sql += " ORDER BY datum";
-    db.all(sql, params, (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+    db.all("SELECT * FROM training ORDER BY datum", [], (err, rows) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
         res.json(rows);
     });
 });
+
 
 // Einzelnen Eintrag bearbeiten
 app.put("/api/training/:id", (req, res) => {
